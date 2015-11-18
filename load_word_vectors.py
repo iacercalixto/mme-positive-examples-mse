@@ -13,6 +13,8 @@ reload(logging)
 logger = logging.getLogger(os.path.basename(sys.argv[0]))
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
+# loads project paths into python path
+from load_config import word_vectors_path
 
 from clean_wikitext import CleanText
 import re
@@ -128,7 +130,7 @@ class SentenceVector:
 
 class WordVectors(object):
     def __init__(self,
-            path_to_vectors='/home/icalixto/resources/wikipedia/extract_wikipedia_corpus_from_xml/enwiki',
+            path_to_vectors=word_vectors_path,
             vectors_file='vectors.300.txt',
             vocab_file='vocab.txt',
             word_vectors_dimensionality=300,
