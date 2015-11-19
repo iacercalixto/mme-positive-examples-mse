@@ -23,9 +23,24 @@ import theano.tensor as T
 from load_config import project_path, save_file_name
 
 from Flickr8k import Flickr8k
+from Flickr30k import Flickr30k
 from FlickrDummy import FlickrDummy
 from load_word_vectors import WordVectors
 from multimodal_embeddings_learner_positive_instances import MultimodalEmbeddingsLearner
+
+
+def load_dataset_flickr30k(batch_size, n_images=4, split='train', verbose=False,
+                          sources=['sentence_id',
+                                   'image_id',
+                                   'sentence_words_ids',
+                                   'image_features']):
+    flickr = Flickr30k()
+    data_stream, _, data_set_size = flickr.load_flickr30k(n_images=n_images,
+                                     which_sets=[split],
+                                     batch_size=batch_size,
+                                     verbose=verbose,
+                                     sources=sources)
+    return data_stream, data_set_size
 
 
 def load_dataset_flickr8k(batch_size, n_images=4, split='train', verbose=False,
@@ -75,12 +90,14 @@ def train_multimodal_embedding(n_epochs=5000, train=False, test=False):
     n_images_train = None
     n_images_valid = None
     n_images_test  = None
-    minibatch_size = 40
+    #minibatch_size = 40
+    minibatch_size = 100
     
     n_hidden_layers = 1
    
     # total size of data sets is five times the number of images
-    load_dataset = load_dataset_flickr8k
+    load_dataset = load_dataset_flickr30k
+    #load_dataset = load_dataset_flickr8k
     train_stream, train_set_size = load_dataset(n_images=n_images_train,
                                                 split='train',
                                                 batch_size=minibatch_size)
