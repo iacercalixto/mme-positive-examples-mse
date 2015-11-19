@@ -17,6 +17,8 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=lo
 import numpy as np
 import theano
 import theano.tensor as T
+import argparse
+
 
 # by loading `load_config` script we make sure our classes are accessible in python path
 # as well as loading variables save_file_name and project_path
@@ -73,7 +75,10 @@ def load_dataset_flickr_dummy(n_images=None, batch_size=21, split='train',
     return data_stream, data_set_size
 
 
-def train_multimodal_embedding(n_epochs=5000, train=False, test=False):
+def run_multimodal_embedding(n_epochs=5000, train=False, test=False,
+        corpus='flickr8k', create_on_load_error=False,
+        save_file_name_cl=None, l1_reg=0., l2_reg=0.):
+
     """ Test RNN with binary outputs. """
     # sentence embeddings and image embeddings are of the same size
     # (the size of the multimodal embeddings)
@@ -94,10 +99,15 @@ def train_multimodal_embedding(n_epochs=5000, train=False, test=False):
     minibatch_size = 100
     
     n_hidden_layers = 1
-   
+    
+    if corpus == 'flickr8k':
+        load_dataset = load_dataset_flickr8k
+    elif corpus == 'flickr30k':
+        load_dataset = load_dataset_flickr30k
+    else:
+        raise Exception("Corpus %s not supported." % str(corpus))
+
     # total size of data sets is five times the number of images
-    load_dataset = load_dataset_flickr30k
-    #load_dataset = load_dataset_flickr8k
     train_stream, train_set_size = load_dataset(n_images=n_images_train,
                                                 split='train',
                                                 batch_size=minibatch_size)
@@ -122,6 +132,13 @@ def train_multimodal_embedding(n_epochs=5000, train=False, test=False):
         word_vecs_np.append( vec )
     word_vecs_np = np.asarray(word_vecs_np, dtype=theano.config.floatX)
     
+    if not save_file_name_cl is None:
+        logger.info("Using file name %s as model file (default was %s)." %
+                (save_file_name_cl, save_file_name))
+        save_file_name_ = save_file_name_cl
+    else:
+        save_file_name_ = save_file_name
+
     model = MultimodalEmbeddingsLearner(
         train_stream             = train_stream,
         valid_stream             = valid_stream,
@@ -136,10 +153,14 @@ def train_multimodal_embedding(n_epochs=5000, train=False, test=False):
         patience                 = 5000,
         activation               = T.nnet.sigmoid,
         vocabulary_size          = vocab_size,
-        proj_name                = save_file_name,
+        proj_name                = save_file_name_,
         proj_folder              = project_path,
         load_model               = True,
-        n_layers                 = n_hidden_layers)
+        n_layers                 = n_hidden_layers,
+        # parameters from the command line
+        stop_on_load_error       = not create_on_load_error,
+        L1_reg                   = l1_reg,
+        L2_reg                   = l2_reg)
     
     if train:
         model.fit(train_set_size = train_set_size,
@@ -159,7 +180,50 @@ def train_multimodal_embedding(n_epochs=5000, train=False, test=False):
         logger.info("Nothing to do!")
 
 
-logging.basicConfig(level=logging.INFO)
-t0 = time.time()
-train_multimodal_embedding(n_epochs=5000, train=True, test=False)
-print "Elapsed time: %f" % (time.time() - t0)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train", required=False, default=True,
+                        action='store_true', help="Train multimodal embedding on training set (choose from corpora).")
+    parser.add_argument("--test",  required=False, default=False,
+                        action='store_true', help="Test multimodal embedding on test set (choose from corpora).")
+    parser.add_argument("--create-on-load-error", required=False, default=False, action='store_true',
+                        help="Whether to create a new model file in case a pre-trained model cannot be loaded. " +
+                        "If not set, an exception is raised in case presaved model file cannot be loaded.")
+    parser.add_argument("--save-base-file-name", required=False, default=None, type=str,
+                        help="Base file name to use to save trained model parameters. Default set in `vars.cfg` file.")
+
+    # l1 and l2 regularisers
+    parser.add_argument("--L1-reg", required=False, default=0., type=float,
+                        help="L1 regularisation coefficient.")
+    parser.add_argument("--L2-reg", required=False, default=0., type=float,
+                        help="L2 regularisation coefficient.")
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--flickr8k", action="store_true")
+    group.add_argument("--flickr30k", action="store_true")
+    args = parser.parse_args()
+
+    if args.flickr8k:
+        corpus = 'flickr8k'
+    if args.flickr30k:
+        corpus = 'flickr30k'
+
+    #print "args: %s" % str(args)
+    #print "corpus: %s" % str(corpus)
+    #print "create on load error: %s" % str(args.create_on_load_error)
+    #sys.exit(0)
+
+    logging.basicConfig(level=logging.INFO)
+    t0 = time.time()
+
+    run_multimodal_embedding(
+            n_epochs             = 5000,
+            train                = args.train,
+            test                 = args.test,
+            corpus               = corpus,
+            create_on_load_error = args.create_on_load_error,
+            save_file_name_cl    = args.save_base_file_name,
+            l1_reg               = args.L1_reg,
+            l2_reg               = args.L2_reg)
+
+    print "Elapsed time: %f" % (time.time() - t0)
